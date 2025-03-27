@@ -4,7 +4,7 @@
 
 ### Клонируем репозиторий
 ```
-git clone ...
+git clone https://github.com/dodocheck/deepseek-ai-tg-bot.git
 ```
 
 ### В корневой папке создаем файл `.env` и добавляем в него переменные окружения:
