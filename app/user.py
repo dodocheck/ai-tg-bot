@@ -1,68 +1,89 @@
 from aiogram import Router, F
 from aiogram.types import Message
-from aiogram.filters import CommandStart, Command
-from aiogram.fsm.context import FSMContext
-from aiogram.enums import ChatAction
+from aiogram.filters import Command, CommandObject
 from loguru import logger
+from dataclasses import dataclass
 
 from app.generator import ask_ai
-from app.states import Chat
 
-max_tokens = 3000
 
 user = Router()
 
-msgs_to_delete = {}
-
-context = {}
+max_tokens = 3000
 
 ai_model = 'deepseek/deepseek-chat-v3-0324:free'
 
 
-@user.message(Chat.busy)
-async def skip_if_busy(message: Message):
-    pass
+@dataclass
+class UserData:
+    context: list
+    is_busy: bool
 
 
-@user.message(F.text.startswith('/забудь'))
+users = {}  # dict of users -> {user_id: UserData}
+
+
+@user.message(Command('clear'))
 async def cmd_clear(message: Message):
-    context[message.from_user.id] = []
-    context[message.from_user.id].append({'role': 'system',
-                                          'content': 'answer in the same language I asked you. Desired response output format: If the user query is asking for a knowledge-based answer or is specifying a data processing or coding task, immediately proceed to the direct answer written as though it was a document. There will be no additional chatty dialog from the AI unless the user is directly conversing with the AI with a chat style. AI should appear to be a data processor, not a chat partner. Keep in mind that you answers will be delivered to me as telegram messages. Answer in detail but try to avoid huge answers.'})
+    user_id = message.from_user.id
+
+    if user_id not in users:
+        users[user_id] = UserData(context=[],
+                                  is_busy=False)
+    else:
+        users[user_id].context = []
+
+    users[user_id].context.append({'role': 'system',
+                                   'content': 'answer in the same language I asked you. Desired response output format: If the user query is asking for a knowledge-based answer or is specifying a data processing or coding task, immediately proceed to the direct answer written as though it was a document. There will be no additional chatty dialog from the AI unless the user is directly conversing with the AI with a chat style. AI should appear to be a data processor, not a chat partner. Keep in mind that you answers will be delivered to me as telegram messages. Answer in detail but try to avoid huge answers.'})
+
     await message.react([{"type": "emoji", "emoji": "👌"}])
 
 
-@user.message(F.text.startswith('/дипсик'))
-async def get_ai_response(message: Message, state: FSMContext):
-    await state.set_state(Chat.busy)
-    msg_from_user = message.text[7:].strip()
+@user.message(Command('ai'))
+async def get_ai_response(message: Message, command: CommandObject):
+    user_id = message.from_user.id
+
+    if user_id not in users:
+        users[user_id] = UserData(context=[],
+                                  is_busy=False)
+        users[user_id].context.append({'role': 'system',
+                                       'content': 'answer in the same language I asked you. Desired response output format: If the user query is asking for a knowledge-based answer or is specifying a data processing or coding task, immediately proceed to the direct answer written as though it was a document. There will be no additional chatty dialog from the AI unless the user is directly conversing with the AI with a chat style. AI should appear to be a data processor, not a chat partner. Keep in mind that you answers will be delivered to me as telegram messages. Answer in detail but try to avoid huge answers.'})
+
+    if users[user_id].is_busy:
+        await message.react([{"type": "emoji", "emoji": "👨‍💻"}])
+        return
+
+    msg_from_user = command.args
+    if not msg_from_user:
+        await message.react([{"type": "emoji", "emoji": "👀"}])
+        return
+
+    users[user_id].is_busy = True
+
     try:
-        if message.from_user.id not in context:
-            context[message.from_user.id] = []
-            context[message.from_user.id].append({'role': 'system',
-                                          'content': 'answer in the same language I asked you. Desired response output format: If the user query is asking for a knowledge-based answer or is specifying a data processing or coding task, immediately proceed to the direct answer written as though it was a document. There will be no additional chatty dialog from the AI unless the user is directly conversing with the AI with a chat style. AI should appear to be a data processor, not a chat partner. Keep in mind that you answers will be delivered to me as telegram messages. Answer in detail but try to avoid huge answers.'})
+        users[user_id].context.append({'role': 'user',
+                                       'content': msg_from_user})
 
-        await message.react([{"type": "emoji", "emoji": "🤔"}])
+        await message.react([{"type": "emoji", "emoji": "✍️"}])
 
-        context[message.from_user.id].append({'role': 'user',
-                                              'content': msg_from_user})
-        response, tokens_used = await ask_ai(context[message.from_user.id], ai_model)
+        response, tokens_used = await ask_ai(users[user_id].context, ai_model)
+
         if tokens_used > max_tokens:
             msg = 'Сделай короткий пересказ нашего диалога от третьего лица. Себя называй как Бот, а меня - Пользователь'
-            context[message.from_user.id].append({'role': 'user',
-                                                  'content': msg})
-            summary, tokens_used = await ask_ai(context[message.from_user.id], ai_model)
-            context[message.from_user.id] = []
-            context[message.from_user.id].append({'role': 'system',
-                                                  'content': summary})
+            users[user_id].context.append({'role': 'user',
+                                           'content': msg})
+            summary, tokens_used = await ask_ai(users[user_id].context, ai_model)
+            users[user_id].context = []
+            users[user_id].context.append({'role': 'system',
+                                           'content': summary})
+            print(1)
 
-        context[message.from_user.id].append({'role': 'assistant',
-                                              'content': response})
+        users[user_id].context.append({'role': 'assistant',
+                                       'content': response})
 
         await message.reply(response, parse_mode='Markdown')
-    except Exception as error:
-        logger.error(f'Произошла ошибка, но Вы в этом не виноваты, не переживайте.\n'
-                     f'Повторите пожалуйста Ваш запрос. Можете его скорректировать при желании, если Ваша квалификация'
-                     f'позволяет разобраться в ошибке:\n{error}')
 
-    await state.clear()
+    except Exception as error:
+        logger.error(f'Error: {error}')
+
+    users[user_id].is_busy = False
