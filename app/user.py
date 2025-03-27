@@ -1,4 +1,4 @@
-from aiogram import Router, F
+from aiogram import Router
 from aiogram.types import Message
 from aiogram.filters import Command, CommandObject
 from loguru import logger
@@ -16,7 +16,7 @@ ai_model = 'deepseek/deepseek-chat-v3-0324:free'
 
 @dataclass
 class UserData:
-    context: list
+    context: list[dict]
     is_busy: bool
 
 
@@ -24,7 +24,12 @@ users = {}  # dict of users -> {user_id: UserData}
 
 
 @user.message(Command('clear'))
-async def cmd_clear(message: Message):
+async def cmd_clear(message: Message) -> None:
+    """Clears chat context for particular user
+
+    Args:
+        message (Message): message_obj from particular user
+    """
     user_id = message.from_user.id
 
     if user_id not in users:
@@ -40,7 +45,13 @@ async def cmd_clear(message: Message):
 
 
 @user.message(Command('ai'))
-async def get_ai_response(message: Message, command: CommandObject):
+async def get_ai_response(message: Message, command: CommandObject) -> None:
+    """Writes a response to user's particular message
+
+    Args:
+        message (Message): message_obj from particular user
+        command (CommandObject): message.text (goes after ai cmd)
+    """
     user_id = message.from_user.id
 
     if user_id not in users:
@@ -55,7 +66,7 @@ async def get_ai_response(message: Message, command: CommandObject):
 
     msg_from_user = command.args
     if not msg_from_user:
-        await message.react([{"type": "emoji", "emoji": "👀"}])
+        await message.react([{"type": "emoji", "emoji": "👀"}]) # if no text was provided by user
         return
 
     users[user_id].is_busy = True
@@ -68,7 +79,7 @@ async def get_ai_response(message: Message, command: CommandObject):
 
         response, tokens_used = await ask_ai(users[user_id].context, ai_model)
 
-        if tokens_used > max_tokens:
+        if tokens_used > max_tokens: # compressing context to 1 message to control tokens spending
             msg = 'Сделай короткий пересказ нашего диалога от третьего лица. Себя называй как Бот, а меня - Пользователь'
             users[user_id].context.append({'role': 'user',
                                            'content': msg})

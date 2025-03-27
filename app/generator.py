@@ -1,7 +1,7 @@
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 import os
-from loguru import logger
+from typing import Tuple
 
 load_dotenv()
 
@@ -9,7 +9,16 @@ client = AsyncOpenAI(base_url='https://openrouter.ai/api/v1',
                      api_key=os.getenv('AI_TOKEN'))
 
 
-async def ask_ai(request, model):
+async def ask_ai(request: list[dict], model: str) -> Tuple[str | None, int]:
+    """Gets a response from ai
+
+    Args:
+        request (list[dict]): chat's context
+        model (str): ai model name from API
+
+    Returns:
+        Tuple[str | None, int]: answer as str, tokens spent for answer
+    """
     response = await client.chat.completions.create(
         messages=request,
         model=model

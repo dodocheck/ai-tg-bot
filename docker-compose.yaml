@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  app:
+    image: python:3.12-slim
+
+    container_name: deepseekv3_tg_bot
+
+    working_dir: /app
+
+    volumes:
+      - ./:/app
+
+    env_file:
+      - .env
+    
+    restart: unless-stopped
+
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && exec python run.py"
