@@ -1,4 +1,4 @@
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import Command, CommandObject
 from loguru import logger
@@ -44,7 +44,7 @@ async def cmd_clear(message: Message) -> None:
     await message.react([{"type": "emoji", "emoji": "👌"}])
 
 
-@user.message(Command('ai'))
+@user.message(Command('ai'), F.text)
 async def get_ai_response(message: Message, command: CommandObject) -> None:
     """Writes a response to user's particular message
 
