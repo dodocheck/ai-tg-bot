@@ -1,4 +1,4 @@
-# DeepSeek Telegram bot
+# AI Telegram bot
 
 ## Установка и запуск
 
