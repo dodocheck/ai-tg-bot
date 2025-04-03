@@ -3,7 +3,7 @@ services:
   app:
     image: python:3.12-slim
 
-    container_name: deepseekv3_tg_bot
+    container_name: ai_tg_bot
 
     working_dir: /app
 
