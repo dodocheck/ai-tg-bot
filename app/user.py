@@ -44,15 +44,31 @@ async def cmd_clear(message: Message) -> None:
     await message.react([{"type": "emoji", "emoji": "👌"}])
 
 
-@user.message(Command('ai'), F.text)
-async def get_ai_response(message: Message, command: CommandObject) -> None:
+@user.message(Command('ai'))
+# If in chat - add /ai before question
+async def ask_ai_in_private(message: Message, command: CommandObject) -> None:
+    await get_ai_response(message, command.args)
+
+
+@user.message(F.text, F.chat.type == "private")
+# If in direct - write as it is
+async def ask_ai_in_private(message: Message) -> None:
+    await get_ai_response(message, message.text)
+
+
+async def get_ai_response(message: Message, msg_from_user: str) -> None:
     """Writes a response to user's particular message
 
     Args:
         message (Message): message_obj from particular user
-        command (CommandObject): message.text (goes after ai cmd)
+        msg_from_user (str): text from user
     """
     user_id = message.from_user.id
+
+    if not msg_from_user:
+        # if no text was provided by user
+        await message.react([{"type": "emoji", "emoji": "👀"}])
+        return
 
     if user_id not in users:
         users[user_id] = UserData(context=[],
@@ -62,11 +78,6 @@ async def get_ai_response(message: Message, command: CommandObject) -> None:
 
     if users[user_id].is_busy:
         await message.react([{"type": "emoji", "emoji": "👨‍💻"}])
-        return
-
-    msg_from_user = command.args
-    if not msg_from_user:
-        await message.react([{"type": "emoji", "emoji": "👀"}]) # if no text was provided by user
         return
 
     users[user_id].is_busy = True
@@ -79,7 +90,7 @@ async def get_ai_response(message: Message, command: CommandObject) -> None:
 
         response, tokens_used = await ask_ai(users[user_id].context, ai_model)
 
-        if tokens_used > max_tokens: # compressing context to 1 message to control tokens spending
+        if tokens_used > max_tokens:  # compressing context to 1 message to control tokens spending
             msg = 'Сделай короткий пересказ нашего диалога от третьего лица. Себя называй как Бот, а меня - Пользователь'
             users[user_id].context.append({'role': 'user',
                                            'content': msg})
