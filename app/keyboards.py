@@ -6,5 +6,7 @@ inline_kb_aimodel = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Gemini 2.5 Pro',
                           callback_data='google/gemini-2.5-pro-exp-03-25:free')],
     [InlineKeyboardButton(text='Qwen 2.5 Coder',
-                          callback_data='qwen/qwen-2.5-coder-32b-instruct:free')]
+                          callback_data='qwen/qwen-2.5-coder-32b-instruct:free')],
+    [InlineKeyboardButton(text='Quasar Alpha',
+                          callback_data='openrouter/quasar-alpha')],
 ])
