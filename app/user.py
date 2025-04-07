@@ -9,7 +9,7 @@ import app.keyboards as kb
 
 user = Router()
 
-max_tokens = 3000
+CONTEXT_MAX_LEN = 20
 
 
 @dataclass
@@ -63,7 +63,7 @@ async def cmd_clear(message: Message) -> None:
 
 
 @user.message(Command('ai'))
-async def ask_ai_in_private(message: Message, command: CommandObject) -> None:
+async def ask_ai_in_group(message: Message, command: CommandObject) -> None:
     """ If in chat - add /ai before question """
     await _process_msg_to_ai(message, command.args)
 
@@ -103,17 +103,13 @@ async def _process_msg_to_ai(message: Message, msg_from_user: str) -> None:
 
         await message.react([{"type": "emoji", "emoji": "✍️"}])
 
-        response, tokens_used = await ask_ai(users[user_id].context, users[user_id].ai_model)
+        if len(users[user_id].context) > CONTEXT_MAX_LEN:
+            system_msg = users[user_id].context[0]       # keep the initial system instruction
+            rest = users[user_id].context[1:]            # get the rest of the conversation history
+            users[user_id].context = [system_msg] + rest[-19:]  # retain system + last 19 messages
 
-        if tokens_used > max_tokens:  # compressing context to 1 message to control tokens spending
-            msg = 'Сделай короткий пересказ нашего диалога от третьего лица. Себя называй как Бот, а меня - Пользователь'
-            users[user_id].context.append({'role': 'user',
-                                           'content': msg})
-            summary, tokens_used = await ask_ai(users[user_id].context, users[user_id].ai_model)
-            users[user_id].context = []
-            users[user_id].context.append({'role': 'system',
-                                           'content': summary})
-            print(1)
+
+        response = await ask_ai(users[user_id].context, users[user_id].ai_model)
 
         users[user_id].context.append({'role': 'assistant',
                                        'content': response})
